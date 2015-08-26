@@ -7,6 +7,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
+import android.graphics.Rect;
 import android.os.Handler;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -17,8 +18,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import cn.bingoogolapple.snake.sprite.Button;
 import cn.bingoogolapple.snake.R;
+import cn.bingoogolapple.snake.sprite.Button;
+import cn.bingoogolapple.snake.sprite.Food;
+import cn.bingoogolapple.snake.sprite.Snake;
 import cn.bingoogolapple.snake.util.UIUtil;
 
 /**
@@ -43,26 +46,21 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private SurfaceHolder mSurfaceHolder;
 
     private Paint mPaint;
-    private Point mFoodPoint;
     private boolean mIsRunning = false;
     private Random mRandom = new Random();
-    private List<Point> mSnakePoints;
+    private List<Snake> mSnakes = new ArrayList<>();
     private Direction mDirection = Direction.DOWN;
     private int mBgColor = Color.WHITE;
-    private int mFoodColor = Color.parseColor("#F91852");
-    private int mSnakeColor = Color.parseColor("#4620C6");
     private int mEdgeLineColor = Color.parseColor("#1D971D");
     private int mGameAreaColor = Color.parseColor("#BBFA6C");
     private GameViewDelegate mDelegate;
 
     private Handler mMoveHandler;
-    private int mEdgeSize;
+    private int mEdgeLineSize;
     private int mSnakeSize;
 
-    private int mStartX;
-    private int mStartY;
-    private int mEndX;
-    private int mEndY;
+    private Rect mGameRect;
+    private Rect mGameEdgeLineRect;
 
     private Button mLeftBtn;
     private Button mUpBtn;
@@ -70,14 +68,13 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private Button mDownBtn;
     private Button mRestartBtn;
 
-    private int mBtnMargin;
+    private Food mFood;
 
     public GameView(Context context) {
         super(context);
 
-        mEdgeSize = UIUtil.dp2px(getContext(), 5);
-        mSnakeSize = UIUtil.dp2px(getContext(), 20);
-        mBtnMargin = UIUtil.dp2px(getContext(), 30);
+        mEdgeLineSize = UIUtil.dp2px(getContext(), 5);
+        mSnakeSize = BitmapFactory.decodeResource(getResources(), R.mipmap.snake).getWidth();
 
         initSurfaceHolder();
         initPaint();
@@ -91,19 +88,14 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private void initPaint() {
         mPaint = new Paint();
         mPaint.setAntiAlias(true);
-    }
-
-    @Override
-    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        mStartX = (w - mSnakeSize * COL_COUNT) / 2;
-        mStartY = mStartX;
-        mEndX = mStartX + mSnakeSize * COL_COUNT;
-        mEndY = mStartY + mSnakeSize * ROW_COUNT;
+        mPaint.setTextSize(UIUtil.sp2px(getContext(), 24));
     }
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         Log.i(TAG, "surfaceCreated");
+
+        initRect();
 
         initLeftBtn();
         initUpBtn();
@@ -114,10 +106,18 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         restart();
     }
 
+    private void initRect() {
+        int startX = (getWidth() - mSnakeSize * COL_COUNT) / 2;
+        int startY = startX;
+        mGameRect = new Rect(startX, startY, startX + mSnakeSize * COL_COUNT, startY + mSnakeSize * ROW_COUNT);
+
+        mGameEdgeLineRect = new Rect(mGameRect.left - mEdgeLineSize / 2, mGameRect.top - mEdgeLineSize / 2, mGameRect.right + mEdgeLineSize / 2, mGameRect.bottom + mEdgeLineSize / 2);
+    }
+
     private void initLeftBtn() {
         Bitmap defautBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.left_normal);
         Bitmap pressedBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.left_pressed);
-        mLeftBtn = new Button(defautBitmap, new Point(mBtnMargin, getHeight() - defautBitmap.getHeight() * 3 - mBtnMargin), pressedBitmap);
+        mLeftBtn = new Button(defautBitmap, new Point((getWidth() - defautBitmap.getWidth()) / 2 - defautBitmap.getWidth() * 2, getHeight() - defautBitmap.getHeight() * 4), pressedBitmap);
         mLeftBtn.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void click() {
@@ -129,7 +129,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private void initUpBtn() {
         Bitmap defautBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.up_normal);
         Bitmap pressedBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.up_pressed);
-        mUpBtn = new Button(defautBitmap, new Point((getWidth() - defautBitmap.getWidth()) / 2, getHeight() - defautBitmap.getHeight() * 5 - mBtnMargin), pressedBitmap);
+        mUpBtn = new Button(defautBitmap, new Point((getWidth() - defautBitmap.getWidth()) / 2, getHeight() - defautBitmap.getHeight() * 6), pressedBitmap);
         mUpBtn.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void click() {
@@ -141,7 +141,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private void initRightBtn() {
         Bitmap defautBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.right_normal);
         Bitmap pressedBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.right_pressed);
-        mRightBtn = new Button(defautBitmap, new Point(getWidth() - defautBitmap.getWidth() - mBtnMargin, getHeight() - defautBitmap.getHeight() * 3 - mBtnMargin), pressedBitmap);
+        mRightBtn = new Button(defautBitmap, new Point((getWidth() - defautBitmap.getWidth()) / 2 + defautBitmap.getWidth() * 2, getHeight() - defautBitmap.getHeight() * 4), pressedBitmap);
         mRightBtn.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void click() {
@@ -153,7 +153,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private void initDownBtn() {
         Bitmap defautBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.down_normal);
         Bitmap pressedBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.down_pressed);
-        mDownBtn = new Button(defautBitmap, new Point((getWidth() - defautBitmap.getWidth()) / 2, getHeight() - defautBitmap.getHeight() - mBtnMargin), pressedBitmap);
+        mDownBtn = new Button(defautBitmap, new Point((getWidth() - defautBitmap.getWidth()) / 2, getHeight() - defautBitmap.getHeight() * 2), pressedBitmap);
         mDownBtn.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void click() {
@@ -165,7 +165,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private void initRestartBtn() {
         Bitmap defautBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.restart_normal);
         Bitmap pressedBitmap = BitmapFactory.decodeResource(getResources(), R.mipmap.restart_pressed);
-        mRestartBtn = new Button(defautBitmap, new Point((getWidth() - defautBitmap.getWidth()) / 2, getHeight() - mBtnMargin - defautBitmap.getHeight() * 3), pressedBitmap);
+        mRestartBtn = new Button(defautBitmap, new Point((getWidth() - defautBitmap.getWidth()) / 2, getHeight() - defautBitmap.getHeight() * 4), pressedBitmap);
         mRestartBtn.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void click() {
@@ -185,22 +185,22 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         Log.i(TAG, "surfaceChanged");
     }
 
-
-    private void eatFood() {
-        if (mSnakePoints.get(0).x == mFoodPoint.x && mSnakePoints.get(0).y == mFoodPoint.y) {
-            mSnakePoints.add(new Point(mSnakePoints.get(mSnakePoints.size() - 1).x, mSnakePoints.get(mSnakePoints.size() - 1).y));
-            mFoodPoint = getRandomPoint();
-        }
-    }
-
     private void move(int x, int y) {
         if (isAlive(x, y)) {
-            // 移动蛇身
-            moveSnakeBody();
+            Snake firstSnake = mSnakes.get(0);
+            // 移动前的第一个点
+            Point firstPoint = new Point(firstSnake.getX(), firstSnake.getY());
+
+            Snake lastSnake = mSnakes.get(mSnakes.size() - 1);
+            // 移动前最后一个点
+            Point lastPoint = new Point(lastSnake.getX(), lastSnake.getY());
+
             // 移动舌头
-            mSnakePoints.get(0).x = mSnakePoints.get(0).x + x;
-            mSnakePoints.get(0).y = mSnakePoints.get(0).y + y;
-            eatFood();
+            mSnakes.get(0).moveBy(x, y);
+            // 移动蛇身
+            moveSnakeBody(firstPoint);
+
+            eatFood(lastPoint);
         } else {
             if (mDelegate != null) {
                 mDelegate.onGameOver();
@@ -210,18 +210,18 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     public boolean isAlive(int x, int y) {
-        Point headPoint = mSnakePoints.get(0);
+        Snake snake = mSnakes.get(0);
 
         // 判断是否与边缘相撞
-        if ((headPoint.x + x) < 0 || (headPoint.x + x) > COL_COUNT - 1 || (headPoint.y + y) < 0 || (headPoint.y + y) > ROW_COUNT - 1) {
+        if ((snake.getX() + x) < 0 || (snake.getX() + x) > COL_COUNT - 1 || (snake.getY() + y) < 0 || (snake.getY() + y) > ROW_COUNT - 1) {
             return false;
         }
 
         // 判断是否与蛇身相撞。大于等于5个点时才会和蛇身相撞
-        if (mSnakePoints.size() >= 5) {
+        if (mSnakes.size() >= 5) {
             // 第5个点会移到第4个点，也就是i等于3开始判断是否会和蛇身相撞
-            for (int i = 3; i < mSnakePoints.size() - 1; i++) {
-                if (headPoint.x + x == mSnakePoints.get(i).x && headPoint.y + y == mSnakePoints.get(i).y) {
+            for (int i = 3; i < mSnakes.size() - 1; i++) {
+                if (snake.getX() + x == mSnakes.get(i).getX() && snake.getY() + y == mSnakes.get(i).getY()) {
                     return false;
                 }
             }
@@ -233,16 +233,22 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     /**
      * 移动蛇的尾巴
      */
-    private void moveSnakeBody() {
-        for (int i = 0; i < mSnakePoints.size(); i++) {
+    private void moveSnakeBody(Point firstPoint) {
+        for (int i = 0; i < mSnakes.size(); i++) {
             if (i == 1) {
-                mSnakePoints.get(i).x = mSnakePoints.get(0).x;
-                mSnakePoints.get(i).y = mSnakePoints.get(0).y;
+                mSnakes.get(i).setPosition(firstPoint);
             } else if (i > 1) {
-                Point body = mSnakePoints.get(i - 1);
-                mSnakePoints.set(i - 1, mSnakePoints.get(i));
-                mSnakePoints.set(i, body);
+                Snake snake = mSnakes.get(i - 1);
+                mSnakes.set(i - 1, mSnakes.get(i));
+                mSnakes.set(i, snake);
             }
+        }
+    }
+
+    private void eatFood(Point lastPoint) {
+        if (mSnakes.get(0).getX() == mFood.getX() && mSnakes.get(0).getY() == mFood.getY()) {
+            mSnakes.add(new Snake(getContext(), lastPoint, mGameRect));
+            generateNewFood();
         }
     }
 
@@ -252,7 +258,26 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
      * @return
      */
     private Point getRandomPoint() {
-        return new Point(mRandom.nextInt(COL_COUNT - 1), mRandom.nextInt(ROW_COUNT - 1));
+        // ROW_COUNT - 2 避免刚出来就在底部最后一格
+        return new Point(mRandom.nextInt(COL_COUNT - 1), mRandom.nextInt(ROW_COUNT - 2));
+    }
+
+    private void generateNewFood() {
+        Point point = getRandomPoint();
+        // 避免食物与舍身重叠
+        while (isOverlap(point)) {
+            point = getRandomPoint();
+        }
+        mFood = new Food(getContext(), point, mGameRect);
+    }
+
+    private boolean isOverlap(Point point) {
+        for (Snake snake : mSnakes) {
+            if (snake.getX() == point.x && snake.getY() == point.y) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -260,14 +285,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
      */
     public void restart() {
         mIsRunning = true;
+        mDirection = Direction.DOWN;
 
-        mFoodPoint = getRandomPoint();
-        if (mSnakePoints == null) {
-            mSnakePoints = new ArrayList<>();
-        } else {
-            mSnakePoints.clear();
-        }
-        mSnakePoints.add(new Point(getRandomPoint()));
+        generateNewFood();
+
+        mSnakes.clear();
+        mSnakes.add(new Snake(getContext(), getRandomPoint(), mGameRect));
 
         if (mRenderThread != null) {
             mRenderThread.interrupt();
@@ -337,51 +360,56 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         drawEdgeLine(lockCanvas);
         // 绘制游戏区域背景色
         drawGameArea(lockCanvas);
+        // 绘制控制按钮
+        drawControlBtn(lockCanvas);
 
-        mLeftBtn.drawSelf(lockCanvas);
-        mUpBtn.drawSelf(lockCanvas);
-        mRightBtn.drawSelf(lockCanvas);
-        mDownBtn.drawSelf(lockCanvas);
-        mRestartBtn.drawSelf(lockCanvas);
-
-        if (mFoodPoint != null && mSnakePoints != null) {
+        if (mFood != null && mSnakes != null) {
             drawFood(lockCanvas);
             drawSnake(lockCanvas);
         }
 
+        drawScore(lockCanvas);
+
         mSurfaceHolder.unlockCanvasAndPost(lockCanvas);
+    }
+
+    private void drawScore(Canvas canvas) {
+        mPaint.setColor(mEdgeLineColor);
+        mPaint.setFakeBoldText(true);
+        String score = "分数：" + (mSnakes.size() - 1) * 10;
+        Rect scoreRect = new Rect();
+        mPaint.getTextBounds(score, 0, score.length(), scoreRect);
+        canvas.drawText(score, (getWidth() - scoreRect.width()) / 2, mGameRect.top - (mGameRect.top - mPaint.getTextSize()) / 2, mPaint);
     }
 
     private void drawEdgeLine(Canvas canvas) {
         mPaint.setStyle(Paint.Style.STROKE);
         mPaint.setColor(mEdgeLineColor);
-        mPaint.setStrokeWidth(mEdgeSize);
-        canvas.drawRect(mStartX - mEdgeSize / 2, mStartY - mEdgeSize / 2, mStartX + mSnakeSize * COL_COUNT + mEdgeSize / 2, mStartY + mSnakeSize * ROW_COUNT + mEdgeSize / 2, mPaint);
+        mPaint.setStrokeWidth(mEdgeLineSize);
+        canvas.drawRect(mGameEdgeLineRect, mPaint);
     }
 
     private void drawGameArea(Canvas canvas) {
         mPaint.setStyle(Paint.Style.FILL);
         mPaint.setColor(mGameAreaColor);
-        canvas.drawRect(mStartX, mStartY, mEndX, mEndY, mPaint);
+        canvas.drawRect(mGameRect, mPaint);
+    }
+
+    private void drawControlBtn(Canvas canvas) {
+        mLeftBtn.drawSelf(canvas);
+        mUpBtn.drawSelf(canvas);
+        mRightBtn.drawSelf(canvas);
+        mDownBtn.drawSelf(canvas);
+        mRestartBtn.drawSelf(canvas);
     }
 
     private void drawFood(Canvas canvas) {
-        mPaint.setStyle(Paint.Style.FILL);
-        mPaint.setColor(mFoodColor);
-        canvas.drawRect(mFoodPoint.x * mSnakeSize + mStartX, mFoodPoint.y * mSnakeSize + mStartY, mFoodPoint.x * mSnakeSize + mStartX + mSnakeSize, mFoodPoint.y * mSnakeSize + mStartY + mSnakeSize, mPaint);
+        mFood.drawSelf(canvas);
     }
 
     private void drawSnake(Canvas canvas) {
-        mPaint.setStyle(Paint.Style.FILL);
-        mPaint.setColor(mSnakeColor);
-        Point snake;
-        for (int i = 0; i < mSnakePoints.size(); i++) {
-            snake = mSnakePoints.get(i);
-            int left = snake.x * mSnakeSize + mStartX;
-            int top = snake.y * mSnakeSize + mStartY;
-            int right = snake.x * mSnakeSize + mStartX + mSnakeSize;
-            int bottom = snake.y * mSnakeSize + mStartY + mSnakeSize;
-            canvas.drawRect(left, top, right, bottom, mPaint);
+        for (int i = 0; i < mSnakes.size(); i++) {
+            mSnakes.get(i).drawSelf(canvas);
         }
     }
 
@@ -438,7 +466,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                     }
                     break;
             }
-            postInvalidate();
         }
     }
 

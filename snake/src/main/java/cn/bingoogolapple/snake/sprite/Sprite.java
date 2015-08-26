@@ -22,4 +22,21 @@ public class Sprite {
         canvas.drawBitmap(mDefautBitmap, mPostion.x, mPostion.y, null);
     }
 
+    public int getX() {
+        return mPostion.x;
+    }
+
+    public int getY() {
+        return mPostion.y;
+    }
+
+    public void moveBy(int x, int y) {
+        mPostion.x += x;
+        mPostion.y += y;
+    }
+
+    public void setPosition(Point position) {
+        mPostion = position;
+    }
+
 }
