@@ -1,1 +1,1 @@
-include ':surfaceview'
+include ':surfaceview', ':snake'
