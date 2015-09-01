@@ -187,19 +187,17 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     private void move(int x, int y) {
         if (isAlive(x, y)) {
+            Point lastPoint;
             Snake firstSnake = mSnakes.get(0);
-            // 移动前的第一个点
-            Point firstPoint = new Point(firstSnake.getX(), firstSnake.getY());
-
-            Snake lastSnake = mSnakes.get(mSnakes.size() - 1);
-            // 移动前最后一个点
-            Point lastPoint = new Point(lastSnake.getX(), lastSnake.getY());
-
-            // 移动舌头
-            mSnakes.get(0).moveBy(x, y);
-            // 移动蛇身
-            moveSnakeBody(firstPoint);
-
+            if (mSnakes.size() == 1) {
+                lastPoint = new Point(firstSnake.getX(), firstSnake.getY());
+                firstSnake.moveBy(x, y);
+            } else {
+                Snake lastSnake = mSnakes.remove(mSnakes.size() - 1);
+                lastPoint = new Point(lastSnake.getX(), lastSnake.getY());
+                lastSnake.setPosition(new Point(firstSnake.getX() + x, firstSnake.getY() + y));
+                mSnakes.add(0, lastSnake);
+            }
             eatFood(lastPoint);
         } else {
             if (mDelegate != null) {
@@ -211,9 +209,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     public boolean isAlive(int x, int y) {
         Snake snake = mSnakes.get(0);
+        int firstX = snake.getX() + x;
+        int firstY = snake.getY() + y;
 
         // 判断是否与边缘相撞
-        if ((snake.getX() + x) < 0 || (snake.getX() + x) > COL_COUNT - 1 || (snake.getY() + y) < 0 || (snake.getY() + y) > ROW_COUNT - 1) {
+        if (firstX < 0 || firstX > COL_COUNT - 1 || firstY < 0 || firstY > ROW_COUNT - 1) {
             return false;
         }
 
@@ -221,28 +221,13 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         if (mSnakes.size() >= 5) {
             // 第5个点会移到第4个点，也就是i等于3开始判断是否会和蛇身相撞
             for (int i = 3; i < mSnakes.size() - 1; i++) {
-                if (snake.getX() + x == mSnakes.get(i).getX() && snake.getY() + y == mSnakes.get(i).getY()) {
+                if (firstX == mSnakes.get(i).getX() && firstY == mSnakes.get(i).getY()) {
                     return false;
                 }
             }
         }
 
         return true;
-    }
-
-    /**
-     * 移动蛇的尾巴
-     */
-    private void moveSnakeBody(Point firstPoint) {
-        for (int i = 0; i < mSnakes.size(); i++) {
-            if (i == 1) {
-                mSnakes.get(i).setPosition(firstPoint);
-            } else if (i > 1) {
-                Snake snake = mSnakes.get(i - 1);
-                mSnakes.set(i - 1, mSnakes.get(i));
-                mSnakes.set(i, snake);
-            }
-        }
     }
 
     private void eatFood(Point lastPoint) {
@@ -287,10 +272,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         mIsRunning = true;
         mDirection = Direction.DOWN;
 
-        generateNewFood();
-
         mSnakes.clear();
         mSnakes.add(new Snake(getContext(), getRandomPoint(), mGameRect));
+
+        generateNewFood();
 
         if (mRenderThread != null) {
             mRenderThread.interrupt();
